@@ -1,0 +1,8 @@
+{
+  "name": "Remix 90 Grados ",
+  "description": "Sistema de gestión operativa, punto de venta (POS) y perfiles de usuario para restaurante-bar 90 Grados en Cundinamarca, Colombia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

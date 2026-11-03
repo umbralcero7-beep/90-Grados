@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Background Radial Glow: Deep Charcoal #010102 to Deep Midnight Wine #200607 to Ultra Black #000100 -->
+    <radialGradient id="bgGlow" cx="45%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#200607" />
+      <stop offset="55%" stop-color="#010102" />
+      <stop offset="100%" stop-color="#000100" />
+    </radialGradient>
+
+    <!-- Outer Rim Gradient: Vibrant Crimson #C53747 to Slate Lavender #666992 to Deep Wine #200607 -->
+    <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C53747" />
+      <stop offset="45%" stop-color="#666992" />
+      <stop offset="100%" stop-color="#200607" />
+    </linearGradient>
+
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C53747" />
+      <stop offset="100%" stop-color="#8E1D2D" />
+    </linearGradient>
+
+    <filter id="glowDrop" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#C53747" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+
+  <!-- Outer background circle - Sized to fill 124px of 128px -->
+  <circle cx="64" cy="64" r="61" fill="url(#bgGlow)" stroke="url(#rimGrad)" stroke-width="4" filter="url(#glowDrop)" />
+  
+  <!-- Inner subtle decorative concentric accent -->
+  <circle cx="64" cy="64" r="54" fill="none" stroke="#666992" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.45" />
+
+  <!-- 90 Degree Angle Badge / Geometry in Vibrant Crimson #C53747 (Expanded scale) -->
+  <path d="M 28 30 L 28 98 L 98 98" fill="none" stroke="#C53747" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.55" />
+
+  <!-- Fork (Vertical - Sized larger) -->
+  <g fill="#EBE1D5" transform="translate(42, 22) scale(1.05)">
+    <!-- Fork head -->
+    <path d="M 6 0 L 6 17 C 6 23 12 27 18 27 C 24 27 30 23 30 17 L 30 0 L 26 0 L 26 15 C 26 18 24 19 22 19 L 22 0 L 18 0 L 18 19 L 14 0 L 10 0 L 10 19 C 8 19 6 18 6 15 L 6 0 Z" />
+    <!-- Handle -->
+    <rect x="15" y="27" width="6" height="42" rx="3" />
+  </g>
+
+  <!-- Knife / Spatula (Horizontal / Angled 90 degrees - Sized larger) -->
+  <g fill="#EBE1D5" transform="translate(102, 74) rotate(90) scale(1.05)">
+    <path d="M 14 0 C 14 0 22 10 22 28 C 22 38 18 44 14 48 L 14 70 L 8 70 L 8 0 Z" opacity="0.95" />
+  </g>
+
+  <!-- Central "90°" text in Pure White with Vibrant Crimson #C53747 Degree Accent (Prominently sized) -->
+  <text x="64" y="72" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="33" fill="#FFFFFF" text-anchor="middle" letter-spacing="-1">
+    90<tspan font-size="24" fill="#C53747" font-weight="900">°</tspan>
+  </text>
+  
+  <!-- "POS" Badge in Muted Slate Lavender with Bone Line Contrast -->
+  <rect x="44" y="79" width="40" height="15" rx="4" fill="#200607" stroke="#666992" stroke-width="1" opacity="0.9" />
+  <text x="64" y="90" font-family="'JetBrains Mono', monospace" font-weight="800" font-size="9.5" fill="#EBE1D5" text-anchor="middle" letter-spacing="2">
+    POS
+  </text>
+</svg>

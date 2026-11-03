@@ -1,0 +1,308 @@
+@import "tailwindcss";
+
+:root {
+  --g90-bg: #000100;
+  --g90-bg-elevated: #010102;
+  --g90-surface: #200607;
+  --g90-action: #C53747;
+  --g90-accent: #666992;
+  --g90-text: #F4F1F1;
+  --g90-text-muted: #C4C0C5;
+  --g90-border: #4B3438;
+  --g90-focus: #AEB2E4;
+
+  /* Semantic compatibility aliases */
+  --color-canvas: var(--g90-bg);
+  --color-carbon: var(--g90-bg-elevated);
+  --color-carbon-surface: var(--g90-bg-elevated);
+  --color-card: var(--g90-bg-elevated);
+  --color-card-border: var(--g90-border);
+  --color-deep-anchor: var(--g90-surface);
+  --color-oxide-crimson: var(--g90-action);
+  --color-bone-line: var(--g90-text);
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    max-height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--g90-bg);
+    color: var(--g90-text);
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* =========================================================================
+   OFFICIAL PALETTE & SEMANTIC UTILITIES:
+   - #000100 : negro carbón (--g90-bg) Dominante
+   - #010102 : negro profundo (--g90-bg-elevated) Paneles y tarjetas
+   - #C53747 : rojo frambuesa (--g90-action) Acciones primarias
+   - #200607 : borgoña oscuro (--g90-surface) Áreas puntuales seleccionadas
+   - #666992 : lavanda grisácea (--g90-accent) Acentos secundarios moderados
+   ========================================================================= */
+
+.bg-g90-bg {
+  background-color: var(--g90-bg);
+}
+
+.bg-g90-elevated {
+  background-color: var(--g90-bg-elevated);
+}
+
+.bg-g90-surface {
+  background-color: var(--g90-surface);
+}
+
+.bg-g90-action {
+  background-color: var(--g90-action);
+}
+
+.bg-g90-accent {
+  background-color: var(--g90-accent);
+}
+
+.text-g90-text {
+  color: var(--g90-text);
+}
+
+.text-g90-muted {
+  color: var(--g90-text-muted);
+}
+
+.border-g90-border {
+  border-color: var(--g90-border);
+}
+
+/* Backward-compatible classes pointing to the new official palette */
+.bg-deep-anchor {
+  background-color: var(--g90-surface);
+}
+
+.bg-oxide-crimson {
+  background-color: var(--g90-action);
+}
+
+.text-bone-line {
+  color: var(--g90-text);
+}
+
+.bg-carbon {
+  background-color: var(--g90-bg-elevated);
+}
+
+.bg-carbon-surface {
+  background-color: var(--g90-bg-elevated);
+}
+
+.bg-canvas-dark {
+  background-color: var(--g90-bg);
+}
+
+/* Borders with official border tone and legibility */
+.border-bone-line {
+  border-color: var(--g90-border);
+}
+
+.border-bone-line-subtle {
+  border-color: rgba(75, 52, 56, 0.4);
+}
+
+.border-bone-line-20 {
+  border-color: rgba(244, 241, 241, 0.12);
+}
+
+.border-bone-line-30 {
+  border-color: rgba(244, 241, 241, 0.2);
+}
+
+.border-bone-line-50 {
+  border-color: rgba(244, 241, 241, 0.35);
+}
+
+/* Clean, crisp dark backgrounds for sidebar and header (No excessive purple!) */
+.sidebar-unified-gradient {
+  background-color: #010102;
+  border-right: 1px solid #4B3438;
+}
+
+.sidebar-unified-gradient-horizontal {
+  background-color: #010102;
+  border-bottom: 1px solid #4B3438;
+}
+
+/* Header & Cobro Panel Backgrounds */
+.header-brand-gradient {
+  background-color: #010102;
+  border-bottom: 1px solid #4B3438;
+}
+
+.panel-header-gradient {
+  background-color: #010102;
+  border-bottom: 1px solid #4B3438;
+}
+
+/* =========================================================================
+   UI COMPONENTS: Cards & Buttons with Official Palette
+   ========================================================================= */
+
+/* Cards using Elevated Black (#010102) background and subtle borders */
+.card-carbon, .ui-card {
+  background-color: var(--g90-bg-elevated);
+  border: 1px solid var(--g90-border);
+  color: var(--g90-text);
+}
+
+.card-carbon-interactive, .ui-card-interactive {
+  background-color: var(--g90-bg-elevated);
+  border: 1px solid var(--g90-border);
+  color: var(--g90-text);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-carbon-interactive:hover, .ui-card-interactive:hover {
+  background-color: #0a0a0f;
+  border-color: var(--g90-accent);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+}
+
+/* Buttons using Carbon elevated background and official borders */
+.btn-carbon, .ui-btn {
+  background-color: var(--g90-bg-elevated);
+  border: 1px solid var(--g90-border);
+  color: var(--g90-text);
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-carbon:hover:not(:disabled), .ui-btn:hover:not(:disabled) {
+  background-color: #0a0a0f;
+  border-color: var(--g90-accent);
+  color: #FFFFFF;
+}
+
+.btn-carbon:disabled, .ui-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(75, 52, 56, 0.2);
+}
+
+/* Active or Selected State with Accent / Surface & Border */
+.btn-active-deep-anchor {
+  background-color: #2a0b12;
+  border: 1px solid var(--g90-action);
+  color: #FFFFFF;
+}
+
+/* Action Button with Frambuesa (#C53747) and Border */
+.btn-primary-crimson {
+  background-color: var(--g90-action);
+  border: 1px solid rgba(244, 241, 241, 0.3);
+  color: #FFFFFF;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-primary-crimson:hover:not(:disabled) {
+  background-color: #d84354;
+  border-color: rgba(244, 241, 241, 0.6);
+  box-shadow: 0 4px 14px rgba(197, 55, 71, 0.45);
+}
+
+/* Custom scrollbars for POS touch screens */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1c1917;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #44403c;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #78716c;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
+
+  html, body {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide all interactive app elements, headers, sidebars, buttons, modals overlays */
+  header, nav, button, .no-print, [role="dialog"] > div:not(.printable-ticket) {
+    display: none !important;
+  }
+
+  /* Thermal ticket container for 80mm paper */
+  .thermal-ticket-80mm {
+    display: block !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 3mm 2mm 8mm 2mm !important; /* Bottom padding for physical paper tear bar */
+    color: #000000 !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .thermal-ticket-80mm * {
+    color: #000000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .thermal-divider {
+    border-bottom: 1px dashed #000000 !important;
+    margin: 4px 0 !important;
+  }
+
+  .thermal-divider-double {
+    border-bottom: 2px solid #000000 !important;
+    margin: 4px 0 !important;
+  }
+
+  .thermal-bold {
+    font-weight: 800 !important;
+  }
+
+  .thermal-large {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+  }
+
+  .thermal-feed-cut {
+    height: 15mm !important;
+    display: block !important;
+  }
+}
+
