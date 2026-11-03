@@ -20,13 +20,13 @@ export const LoginScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = login(identifierInput, pinInput, is2FAStep ? twoFactorCodeInput : undefined);
+    try {
+      const res = await login(identifierInput, pinInput, is2FAStep ? twoFactorCodeInput : undefined);
       setIsLoading(false);
 
       if (res.requires2FA && !is2FAStep) {
@@ -39,7 +39,10 @@ export const LoginScreen: React.FC = () => {
       if (!res.success) {
         setErrorMsg('No fue posible iniciar sesión. Verifica tus datos o solicita ayuda al administrador.');
       }
-    }, 200);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMsg('Error de conexión o verificación de credenciales.');
+    }
   };
 
   const handleBackToCredentials = () => {

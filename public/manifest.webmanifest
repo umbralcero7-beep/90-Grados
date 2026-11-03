@@ -1,0 +1,25 @@
+{
+  "name": "90 Grados POS & Bar",
+  "short_name": "90 Grados POS",
+  "description": "Sistema de Punto de Venta y Gestión Operativa Local-First para 90 Grados Gastrobar",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000100",
+  "theme_color": "#7C170D",
+  "lang": "es-CO",
+  "icons": [
+    {
+      "src": "/assets/aistudio/FullLogo_dd4cd38a.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/aistudio/FullLogo_dd4cd38a.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

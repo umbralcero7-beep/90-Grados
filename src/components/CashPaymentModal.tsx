@@ -164,7 +164,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
   };
 
   // Handle final payment submission
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (!canConfirm || isProcessing) return;
 
     try {
@@ -174,7 +174,7 @@ export const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
       // 1. Resolve or create order
       let targetOrder = order;
       if (!targetOrder && draftData) {
-        targetOrder = createOrder(draftData.tableNumber, draftData.items, draftData.customerNote);
+        targetOrder = await createOrder(draftData.tableNumber, draftData.items, draftData.customerNote);
       }
 
       if (!targetOrder) {

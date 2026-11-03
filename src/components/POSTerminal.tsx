@@ -222,10 +222,10 @@ export const POSTerminal: React.FC = () => {
 
   const canConfirmPayment = totalDue > 0 && cashStillPending === 0 && (cashReceived + splitElectronicAmount >= totalDue);
 
-  const handleSendOrderToKDS = () => {
+  const handleSendOrderToKDS = async () => {
     if (ticketItems.length === 0) return;
     const destination = saleMode === 'venta_rapida' ? `Venta Rápida #${quickSaleIndex}` : selectedTable;
-    createOrder(destination, ticketItems, orderNotes);
+    await createOrder(destination, ticketItems, orderNotes);
     setTicketItems([]);
     setOrderNotes('');
     if (saleMode === 'venta_rapida') {
@@ -234,10 +234,10 @@ export const POSTerminal: React.FC = () => {
   };
 
   // Immediate 1-click Express Cash Payment for Venta Rápida
-  const handleQuickSaleExactCash = () => {
+  const handleQuickSaleExactCash = async () => {
     if (ticketItems.length === 0) return;
     const destination = `Venta Rápida #${quickSaleIndex}`;
-    const newOrder = createOrder(destination, ticketItems, orderNotes || 'Venta Rápida Mostrador');
+    const newOrder = await createOrder(destination, ticketItems, orderNotes || 'Venta Rápida Mostrador');
     
     const paymentRecord: PaymentRecord = {
       id: `pay-${Date.now()}`,
@@ -261,7 +261,7 @@ export const POSTerminal: React.FC = () => {
     setRightPanelTab('cobro');
   };
 
-  const handleCompleteCurrentPayment = () => {
+  const handleCompleteCurrentPayment = async () => {
     if (!canConfirmPayment) return;
 
     let targetOrder: Order;
@@ -271,7 +271,7 @@ export const POSTerminal: React.FC = () => {
       targetOrder = existingOrderToCharge;
     } else {
       if (ticketItems.length === 0) return;
-      targetOrder = createOrder(destination, ticketItems, orderNotes || 'Cobro directo en caja');
+      targetOrder = await createOrder(destination, ticketItems, orderNotes || 'Cobro directo en caja');
       setTicketItems([]);
       setOrderNotes('');
       if (saleMode === 'venta_rapida') {

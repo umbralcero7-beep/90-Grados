@@ -35,12 +35,20 @@ import {
   defaultRolePermissions,
   defaultUserModulePermissions
 } from '../data/initialData';
+import { verifyPinPBKDF2 } from '../utils/cryptoAuth';
+import {
+  isSupabaseConfigured,
+  persistOrderToSupabase,
+  fetchOrdersFromSupabase,
+  subscribeToOrdersSupabase,
+  updateOrderStatusInSupabase
+} from '../services/supabaseService';
 
 interface AppContextType {
   currentUser: UserProfile;
   allUsers: UserProfile[];
   isAuthenticated: boolean;
-  login: (username: string, pin: string, twoFactorCode?: string) => { success: boolean; message: string; requires2FA?: boolean; remainingAttempts?: number };
+  login: (username: string, pin: string, twoFactorCode?: string) => Promise<{ success: boolean; message: string; requires2FA?: boolean; remainingAttempts?: number }>;
   logout: () => void;
 
   updateUserProfile: (id: string, updates: Partial<UserProfile>) => void;
@@ -65,7 +73,12 @@ interface AppContextType {
   bulkAddProducts: (newProducts: Product[]) => void;
 
   orders: Order[];
-  createOrder: (tableNumber: string, items: OrderItem[], customerNote?: string) => Order;
+  createOrder: (
+    tableNumber: string, 
+    items: OrderItem[], 
+    customerNote?: string, 
+    options?: { idempotencyKey?: string; sedeId?: string }
+  ) => Promise<Order>;
   updateStationStatus: (orderId: string, station: 'cocina' | 'bar', status: OrderStationStatus) => void;
   completePayment: (orderId: string, payment: PaymentRecord) => void;
   cancelOrder: (orderId: string, reason: string) => void;
@@ -148,7 +161,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => 
-    loadFromStorage('is_authenticated', true)
+    loadFromStorage('is_authenticated', false)
   );
 
   const currentUser = allUsers.find(u => u.id === currentUserId) || allUsers[0];
@@ -214,7 +227,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orderNumber: 101,
         tableNumber: 'Mesa 4',
         waiterId: 'usr-3',
-        waiterName: 'Mateo Alejandro Silva',
+        waiterName: 'Mesero Salón 1',
         waiterAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&h=300&q=80',
         shiftId: 'shift-today-01',
         status: 'abierta',
@@ -256,7 +269,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orderNumber: 102,
         tableNumber: 'Mesa 2',
         waiterId: 'usr-3',
-        waiterName: 'Mateo Alejandro Silva',
+        waiterName: 'Mesero Salón 1',
         waiterAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&h=300&q=80',
         shiftId: 'shift-today-01',
         status: 'abierta',
@@ -348,7 +361,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: 'cuenta_bancaria',
         cashDeskId: 'Bancolombia Empresarial',
         center: 'Administración',
-        responsiblePerson: 'Carmen Elena Morales',
+        responsiblePerson: 'Administrador General',
         registeredByUserId: initialUsers[0].id,
         registeredByUserName: initialUsers[0].fullName,
         status: 'pagado',
@@ -382,7 +395,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: 'efectivo_caja',
         cashDeskId: 'Caja Principal Salón',
         center: 'Restaurante Matutino',
-        responsiblePerson: 'Carmen Elena Morales',
+        responsiblePerson: 'Administrador General',
         registeredByUserId: initialUsers[0].id,
         registeredByUserName: initialUsers[0].fullName,
         status: 'pagado',
@@ -409,9 +422,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amountCOP: 500000,
         category: 'Aporte de Capital',
         type: 'inversion_dueno',
-        description: 'Inversión de capital de la socia dueña para ampliación de cristalería de coctelería',
-        thirdPartyName: 'Carmen Elena Morales (Socia Principal)',
-        thirdPartyNit: '52.381.990',
+        description: 'Inversión de capital para ampliación de cristalería de coctelería',
+        thirdPartyName: 'Socio Inversionista Principal',
+        thirdPartyNit: '900.000.000-0',
         paymentMethod: 'cuenta_bancaria',
         cashDeskId: 'Bancolombia Empresarial',
         center: 'Administración',
@@ -436,9 +449,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amountCOP: 250000,
         category: 'Retiro de Capital',
         type: 'retiro_dueno',
-        description: 'Retiro parcial de utilidades acumuladas para gastos personales del propietario',
-        thirdPartyName: 'Carmen Elena Morales (Dueña)',
-        thirdPartyNit: '52.381.990',
+        description: 'Retiro parcial de utilidades acumuladas para gastos de socios propietarios',
+        thirdPartyName: 'Socio Propietario',
+        thirdPartyNit: '900.000.000-0',
         paymentMethod: 'efectivo_caja',
         cashDeskId: 'Caja General Salón',
         center: 'Administración',
@@ -468,7 +481,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: 'efectivo_caja',
         cashDeskId: 'Caja General -> Caja Menor Barra',
         center: 'Bar Nocturno',
-        responsiblePerson: 'Diana Paola Torres',
+        responsiblePerson: 'Cajero Principal',
         registeredByUserId: initialUsers[1].id,
         registeredByUserName: initialUsers[1].fullName,
         status: 'pagado',
@@ -499,7 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentMethod: 'efectivo_caja',
         cashDeskId: 'Caja Principal Salón',
         center: 'Restaurante Matutino',
-        responsiblePerson: 'Diana Paola Torres',
+        responsiblePerson: 'Cajero Principal',
         registeredByUserId: initialUsers[1].id,
         registeredByUserName: initialUsers[1].fullName,
         status: 'pendiente_aprobacion',
@@ -566,7 +579,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         debitAccount: '110505 - Caja General',
         creditAccount: '111005 - Bancos / Transferencia',
         amountCOP: 200000,
-        user: 'Carmen Elena Morales',
+        user: 'Administrador General',
         sourceType: 'traspaso',
       },
       {
@@ -576,7 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         debitAccount: '143505 - Inventario Insumos',
         creditAccount: '110505 - Caja General',
         amountCOP: 180000,
-        user: 'Carmen Elena Morales',
+        user: 'Administrador General',
         sourceType: 'gasto',
       },
     ])
@@ -614,6 +627,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => saveToStorage('ledger', ledger), [ledger]);
   useEffect(() => saveToStorage('audit_logs', auditLogs), [auditLogs]);
 
+  // Sincronización continua de comandas con Supabase Cloud
+  // Permite que la pantalla de Caja en Vercel lea inmediatamente las comandas creadas por el APK del mesero
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    let isSubscribed = true;
+
+    const syncRemoteOrders = async () => {
+      try {
+        const response = await fetchOrdersFromSupabase();
+        if (!isSubscribed) return;
+
+        if (response.success && response.data && response.data.length > 0) {
+          const remoteList = response.data;
+          setOrders(prev => {
+            const map = new Map(prev.map(o => [o.id, o]));
+            let modified = false;
+
+            for (const rOrder of remoteList) {
+              const local = map.get(rOrder.id);
+              if (!local) {
+                map.set(rOrder.id, rOrder);
+                modified = true;
+              } else if (
+                local.status !== rOrder.status ||
+                local.stationStatus?.cocina !== rOrder.stationStatus?.cocina ||
+                local.stationStatus?.bar !== rOrder.stationStatus?.bar
+              ) {
+                map.set(rOrder.id, {
+                  ...local,
+                  status: rOrder.status,
+                  stationStatus: rOrder.stationStatus
+                });
+                modified = true;
+              }
+            }
+
+            if (!modified) return prev;
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          });
+        }
+      } catch (err) {
+        console.warn('Error en sincronización periódica de órdenes desde Supabase:', err);
+      }
+    };
+
+    // 1. Carga inicial
+    syncRemoteOrders();
+
+    // 2. Suscripción Realtime (WebSockets)
+    const unsubscribe = subscribeToOrdersSupabase(() => {
+      syncRemoteOrders();
+    });
+
+    // 3. Intervalo de sondeo regular de respaldo (cada 8 segundos)
+    const intervalId = setInterval(syncRemoteOrders, 8000);
+
+    return () => {
+      isSubscribed = false;
+      if (unsubscribe) unsubscribe();
+      clearInterval(intervalId);
+    };
+  }, []);
+
   const addAuditLog = (
     action: string, 
     entity: string, 
@@ -647,11 +726,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // =========================================================================
   // 1. AUTENTICACIÓN, LISTA BLANCA, INTENTOS FALLIDOS (RATE LIMIT) Y 2FA
   // =========================================================================
-  const login = (
+  const login = async (
     username: string, 
     pin: string, 
     twoFactorCode?: string
-  ): { success: boolean; message: string; requires2FA?: boolean; remainingAttempts?: number } => {
+  ): Promise<{ success: boolean; message: string; requires2FA?: boolean; remainingAttempts?: number }> => {
     const cleanInput = username.trim().toLowerCase().replace(/^@/, '');
     const user = allUsers.find(u => u.username.toLowerCase() === cleanInput || (u.email && u.email.toLowerCase() === cleanInput));
 
@@ -691,8 +770,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: genericErrorMsg, remainingAttempts: user ? Math.max(3 - ((user.failedAttempts || 0) + 1), 0) : 0 };
     }
 
-    // Check PIN credential
-    if (user.pin !== pin) {
+    // Check PIN credential with PBKDF2 hash
+    const isPinValid = await verifyPinPBKDF2(pin, user.pinHash, user.pinSalt);
+    if (!isPinValid) {
       const currentAttempts = (user.failedAttempts || 0) + 1;
       const willLock = currentAttempts >= 3;
       const lockedUntil = willLock ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null;
@@ -1020,33 +1100,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('IMPORTACION_MASIVA', 'Carta de Productos', `Se agregaron ${newProducts.length} productos`);
   };
 
-  const createOrder = (tableNumber: string, items: OrderItem[], customerNote?: string): Order => {
-    const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const hasKitchen = items.some(i => i.station === 'cocina');
-    const hasBar = items.some(i => i.station === 'bar');
+  const createOrder = async (
+    tableNumber: string, 
+    items: OrderItem[], 
+    customerNote?: string,
+    options?: { idempotencyKey?: string; sedeId?: string }
+  ): Promise<Order> => {
+    // 1. Validación estricta de precios contra catálogo oficial (evita alteración desde el móvil)
+    const validatedItems: OrderItem[] = items.map(item => {
+      const catalogProd = products.find(p => p.id === item.productId || p.sku === item.productId);
+      const officialPrice = catalogProd ? catalogProd.price : item.price;
+      return {
+        ...item,
+        price: officialPrice,
+      };
+    });
 
+    const totalAmount = validatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const hasKitchen = validatedItems.some(i => i.station === 'cocina');
+    const hasBar = validatedItems.some(i => i.station === 'bar');
+
+    const generatedId = `ord-${Date.now()}`;
     const newOrder: Order = {
-      id: `ord-${Date.now()}`,
+      id: generatedId,
       orderNumber: (orders[0]?.orderNumber || 100) + 1,
       tableNumber,
       waiterId: currentUser.id,
       waiterName: currentUser.fullName,
       waiterAvatar: currentUser.avatarUrl,
       shiftId: currentShift?.id || 'sin-turno',
+      sedeId: options?.sedeId || currentUser.assignedSede || 'sede-principal',
+      idempotencyKey: options?.idempotencyKey,
       status: 'abierta',
       stationStatus: {
         cocina: hasKitchen ? 'recibido' : 'entregado',
         bar: hasBar ? 'recibido' : 'entregado',
       },
-      items,
+      items: validatedItems,
       customerNote,
       createdAt: new Date().toISOString(),
       totalAmount,
     };
 
-    setOrders(prev => [newOrder, ...prev]);
+    // 2. Persistencia en Supabase Cloud si está configurado
+    if (isSupabaseConfigured()) {
+      try {
+        const catalogMap: Record<string, number> = {};
+        products.forEach(p => {
+          catalogMap[p.id] = p.price;
+          catalogMap[p.sku] = p.price;
+        });
 
-    // Update waiter stats
+        const persistRes = await persistOrderToSupabase(newOrder, catalogMap, options?.idempotencyKey);
+        if (persistRes.success && persistRes.orderId) {
+          newOrder.id = persistRes.orderId;
+        }
+      } catch (err) {
+        console.warn('Persistencia remota en Supabase no completada:', err);
+      }
+    }
+
+    setOrders(prev => {
+      // Prevención de duplicados por idempotencia
+      if (options?.idempotencyKey && prev.some(o => o.idempotencyKey === options.idempotencyKey)) {
+        return prev;
+      }
+      if (prev.some(o => o.id === newOrder.id)) {
+        return prev;
+      }
+      return [newOrder, ...prev];
+    });
+
+    // Actualizar estadísticas del mesero
     setAllUsers(prev => prev.map(u => 
       u.id === currentUser.id 
         ? { ...u, stats: { ...u.stats, ordersCreated: u.stats.ordersCreated + 1 } }
@@ -1062,12 +1187,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateStationStatus = (orderId: string, station: 'cocina' | 'bar', status: OrderStationStatus) => {
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
+        const updatedStationStatus = {
+          ...o.stationStatus,
+          [station]: status,
+        };
+        // Sincronizar actualización de estado a Supabase de forma no bloqueante
+        if (isSupabaseConfigured()) {
+          updateOrderStatusInSupabase(orderId, o.status, { [station]: status }).catch(() => {});
+        }
         return {
           ...o,
-          stationStatus: {
-            ...o.stationStatus,
-            [station]: status,
-          },
+          stationStatus: updatedStationStatus,
         };
       }
       return o;
@@ -1085,6 +1215,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return o;
     }));
+
+    // Sincronizar comanda pagada a Supabase
+    if (isSupabaseConfigured()) {
+      updateOrderStatusInSupabase(orderId, 'pagada').catch(() => {});
+    }
 
     // Update current shift cash ledger
     if (currentShift) {

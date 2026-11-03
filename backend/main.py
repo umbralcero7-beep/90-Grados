@@ -41,6 +41,7 @@ from backend.security.security_config import (
     filter_product_for_role,
     SECURITY_HEADERS
 )
+from backend.database.db_service import db_manager
 
 # Inicializar aplicación FastAPI
 try:
@@ -107,6 +108,55 @@ try:
     class CsvDraftParseRequest(BaseModel):
         csv_content: str
         filename: Optional[str] = "carta_revision.csv"
+
+    class AuthLoginRequest(BaseModel):
+        username: str
+        pin: str = Field(..., min_length=4, max_length=6)
+
+    class OrderItemInput(BaseModel):
+        product_id: str
+        product_name: str
+        quantity: int = Field(..., gt=0)
+        unit_price_cop: int = Field(..., ge=0)
+        station: str = "cocina"
+        notes: Optional[str] = ""
+
+    class OrderCreateRequest(BaseModel):
+        table_number: str
+        waiter_id: str
+        waiter_name: str
+        items: List[OrderItemInput]
+        shift_id: Optional[str] = None
+        customer_note: Optional[str] = ""
+
+    class OrderStatusUpdateRequest(BaseModel):
+        status: Optional[str] = None
+        cocina_status: Optional[str] = None
+        bar_status: Optional[str] = None
+
+    class PaymentProcessRequest(BaseModel):
+        order_id: str
+        total_due_cop: int = Field(..., ge=0)
+        received_cash_cop: int = Field(0, ge=0)
+        change_given_cop: int = Field(0, ge=0)
+        bill_10000: int = Field(0, ge=0)
+        bill_20000: int = Field(0, ge=0)
+        bill_50000: int = Field(0, ge=0)
+        bill_100000: int = Field(0, ge=0)
+        payment_methods: List[Dict[str, Any]]
+        cashier_id: str
+        idempotency_key: str = Field(..., min_length=10)
+
+    class ShiftOpenRequest(BaseModel):
+        center: str = "Restaurante Matutino"
+        opened_by_id: str
+        initial_fund_cop: int = Field(..., ge=0)
+
+    class ShiftCloseRequest(BaseModel):
+        shift_id: str
+        closed_by_id: str
+        counted_cash_cop: int = Field(..., ge=0)
+        expected_cash_cop: int = Field(..., ge=0)
 
     # Endpoints principales
 
@@ -201,6 +251,125 @@ try:
             return reporte.to_dict()
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error al procesar el archivo borrador: {str(e)}")
+
+    # =========================================================================
+    # ENDPOINTS PERSISTENTES: PEDIDOS / COMANDAS (ORDERS)
+    # =========================================================================
+    @app.get("/api/orders")
+    def list_orders(status: Optional[str] = None, shift_id: Optional[str] = None):
+        return db_manager.get_orders(status=status, shift_id=shift_id)
+
+    @app.post("/api/orders")
+    def create_order_endpoint(req: OrderCreateRequest):
+        order_id = f"ord-{int(datetime.now().timestamp() * 1000)}"
+        items_dict = [it.dict() for it in req.items]
+        return db_manager.create_order(
+            order_id=order_id,
+            table_number=req.table_number,
+            waiter_id=req.waiter_id,
+            waiter_name=req.waiter_name,
+            items=items_dict,
+            shift_id=req.shift_id,
+            customer_note=req.customer_note or "",
+            role="mesero"
+        )
+
+    @app.patch("/api/orders/{order_id}/status")
+    def update_order_status_endpoint(order_id: str, req: OrderStatusUpdateRequest):
+        updated = db_manager.update_order_status(
+            order_id=order_id,
+            status=req.status,
+            cocina_status=req.cocina_status,
+            bar_status=req.bar_status,
+            role="cajero"
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Comanda no encontrada")
+        return updated
+
+    # =========================================================================
+    # ENDPOINTS PERSISTENTES: PAGOS Y COBROS (PAYMENTS)
+    # =========================================================================
+    @app.post("/api/payments")
+    def process_payment_endpoint(req: PaymentProcessRequest):
+        payment_id = f"pay-{int(datetime.now().timestamp() * 1000)}"
+        denominations = {
+            "bill_10000": req.bill_10000,
+            "bill_20000": req.bill_20000,
+            "bill_50000": req.bill_50000,
+            "bill_100000": req.bill_100000
+        }
+        res = db_manager.process_payment(
+            payment_id=payment_id,
+            order_id=req.order_id,
+            total_due_cop=req.total_due_cop,
+            received_cash_cop=req.received_cash_cop,
+            change_given_cop=req.change_given_cop,
+            denominations=denominations,
+            payment_methods=req.payment_methods,
+            cashier_id=req.cashier_id,
+            idempotency_key=req.idempotency_key,
+            role="cajero"
+        )
+        return res
+
+    # =========================================================================
+    # ENDPOINTS PERSISTENTES: TURNOS DE CAJA (SHIFTS)
+    # =========================================================================
+    @app.get("/api/shifts/current")
+    def get_current_shift_endpoint(center: str = "Restaurante Matutino"):
+        shift = db_manager.get_current_shift(center)
+        if not shift:
+            return {"active": False, "message": "No hay turno activo para este centro"}
+        return {"active": True, "shift": shift}
+
+    @app.post("/api/shifts/open")
+    def open_shift_endpoint(req: ShiftOpenRequest):
+        shift_id = f"shift-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        return db_manager.open_shift(
+            shift_id=shift_id,
+            center=req.center,
+            opened_by_id=req.opened_by_id,
+            initial_fund_cop=req.initial_fund_cop,
+            role="cajero"
+        )
+
+    @app.post("/api/shifts/close")
+    def close_shift_endpoint(req: ShiftCloseRequest):
+        closed = db_manager.close_shift(
+            shift_id=req.shift_id,
+            closed_by_id=req.closed_by_id,
+            counted_cash_cop=req.counted_cash_cop,
+            expected_cash_cop=req.expected_cash_cop,
+            role="cajero"
+        )
+        if not closed:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+        return closed
+
+    # =========================================================================
+    # ENDPOINTS PERSISTENTES: GASTOS Y EGRESOS OPERATIVOS (EXPENSES)
+    # =========================================================================
+    @app.get("/api/expenses")
+    def get_expenses_endpoint(operational_date: Optional[str] = None):
+        return db_manager.get_expenses(operational_date)
+
+    @app.post("/api/expenses")
+    def create_expense_endpoint(req: ExpenseCreateRequest):
+        data = req.dict()
+        return db_manager.create_expense(data, role="cajero")
+
+    @app.post("/api/expenses/{expense_id}/annul")
+    def annul_expense_endpoint(expense_id: str, req: ExpenseAnnulRequest):
+        annulled = db_manager.annul_expense(
+            expense_id=expense_id,
+            annulled_by_id=req.annulled_by_user_id,
+            reason=req.annulment_reason,
+            role="administrador"
+        )
+        if not annulled:
+            raise HTTPException(status_code=404, detail="Gasto no encontrado")
+        return annulled
 
 except NameError:
     # FastAPI no disponible globalmente

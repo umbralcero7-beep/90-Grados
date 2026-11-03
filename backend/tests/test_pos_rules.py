@@ -252,5 +252,120 @@ class Test90GradosPOS(unittest.TestCase):
         datos_admin = filter_product_for_role(plato, "administrador")
         self.assertIn("estimated_cost_cop", datos_admin)
 
+    # ==========================================================================
+    # CASOS DE PERSISTENCIA LOCAL, IDEMPOTENCIA Y FLUJO FINANCIERO
+    # ==========================================================================
+    def test_flujo_persistencia_comanda_y_pago_idempotente(self):
+        """Prueba creación de pedido, total calculado en servidor y pago idempotente."""
+        from backend.database.db_service import db_manager
+
+        order_id = "test-ord-5001"
+        items = [
+            {"product_id": "prd-pic-2", "quantity": 1, "unit_price_cop": 90000, "station": "cocina"},
+            {"product_id": "prd-cer-1", "quantity": 2, "unit_price_cop": 5000, "station": "bar"}
+        ]
+        created = db_manager.create_order(
+            order_id=order_id,
+            table_number="Mesa 5",
+            waiter_id="usr-3",
+            waiter_name="Mesero Salón 1",
+            items=items,
+            shift_id="shift-test-01",
+            role="mesero"
+        )
+        self.assertEqual(created["total_amount_cop"], 100000)
+        self.assertEqual(created["status"], "abierta")
+
+        # Pago con clave de idempotencia
+        idempotency_key = "idem-key-abc-123-unique"
+        payment = db_manager.process_payment(
+            payment_id="test-pay-5001",
+            order_id=order_id,
+            total_due_cop=100000,
+            received_cash_cop=100000,
+            change_given_cop=0,
+            denominations={"bill_50000": 2},
+            payment_methods=[{"method": "efectivo_caja", "amount": 100000}],
+            cashier_id="usr-2",
+            idempotency_key=idempotency_key,
+            role="cajero"
+        )
+        self.assertEqual(payment["total_due_cop"], 100000)
+
+        # Repetición idéntica de la petición con la misma idempotency_key
+        duplicate_payment = db_manager.process_payment(
+            payment_id="test-pay-5001-duplicate",
+            order_id=order_id,
+            total_due_cop=100000,
+            received_cash_cop=100000,
+            change_given_cop=0,
+            denominations={"bill_50000": 2},
+            payment_methods=[{"method": "efectivo_caja", "amount": 100000}],
+            cashier_id="usr-2",
+            idempotency_key=idempotency_key,
+            role="cajero"
+        )
+        # Debe retornar el mismo registro original sin duplicar el cobro
+        self.assertEqual(duplicate_payment["id"], "test-pay-5001")
+
+        # Comprobar estado de la orden actualizada
+        orders = db_manager.get_orders()
+        matched = [o for o in orders if o["id"] == order_id]
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(matched[0]["status"], "pagada")
+
+    def test_flujo_turnos_apertura_y_cierre_z(self):
+        """Prueba apertura de turno y cierre Z con arqueo de diferencia."""
+        from backend.database.db_service import db_manager
+
+        shift_id = "test-shift-09"
+        opened = db_manager.open_shift(
+            shift_id=shift_id,
+            center="Restaurante Matutino",
+            opened_by_id="usr-2",
+            initial_fund_cop=200000,
+            role="cajero"
+        )
+        self.assertEqual(opened["status"], "abierto")
+        self.assertEqual(opened["initial_fund_cop"], 200000)
+
+        # Cierre Z con sobrante de $5.000 COP
+        closed = db_manager.close_shift(
+            shift_id=shift_id,
+            closed_by_id="usr-2",
+            counted_cash_cop=505000,
+            expected_cash_cop=500000,
+            role="cajero"
+        )
+        self.assertEqual(closed["status"], "cerrado")
+        self.assertEqual(closed["cash_difference_cop"], 5000)
+
+    def test_flujo_gastos_y_anulacion_auditada(self):
+        """Prueba registro de gasto y anulación con motivo obligatorio."""
+        from backend.database.db_service import db_manager
+
+        expense_data = {
+            "id": "test-exp-100",
+            "operational_date": "2026-10-16",
+            "amount_cop": 85000,
+            "category": "Suministros & Aseo",
+            "type": "gasto_operativo",
+            "description": "Artículos de aseo y desinfección",
+            "payment_method": "efectivo_caja",
+            "registered_by_user_id": "usr-2",
+            "status": "aprobado"
+        }
+        created = db_manager.create_expense(expense_data, role="cajero")
+        self.assertEqual(created["status"], "aprobado")
+
+        annulled = db_manager.annul_expense(
+            expense_id="test-exp-100",
+            annulled_by_id="usr-1",
+            reason="Factura duplicada por proveedor",
+            role="administrador"
+        )
+        self.assertEqual(annulled["status"], "anulado")
+        self.assertEqual(annulled["annulment_reason"], "Factura duplicada por proveedor")
+
 if __name__ == '__main__':
     unittest.main()

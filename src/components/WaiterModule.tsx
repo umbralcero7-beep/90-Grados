@@ -23,7 +23,8 @@ import {
   Flame, 
   FileText,
   BadgeAlert,
-  ChevronLeft
+  ChevronLeft,
+  Loader2
 } from 'lucide-react';
 
 const CATEGORIES: ProductCategory[] = [
@@ -90,6 +91,8 @@ export const WaiterModule: React.FC = () => {
   
   // Feedback alerts
   const [sentSuccessMessage, setSentSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [accountRequestedTables, setAccountRequestedTables] = useState<Record<string, boolean>>({});
 
   // Active open orders
@@ -172,18 +175,40 @@ export const WaiterModule: React.FC = () => {
 
   const ticketTotal = ticketItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-  // Send Order to Kitchen & Bar without touching Caja
-  const handleSendComanda = () => {
-    if (ticketItems.length === 0) return;
+  // Send Order to Kitchen & Bar without touching Caja (Online with Supabase and Idempotency)
+  const handleSendComanda = async () => {
+    if (ticketItems.length === 0 || isSubmitting) return;
 
-    createOrder(selectedTable, ticketItems, orderNotes);
-    
-    setSentSuccessMessage(`¡Comanda enviada a Cocina & Bar para ${selectedTable}!`);
-    setTimeout(() => setSentSuccessMessage(null), 3500);
+    // Idempotency key to guarantee no double orders on touch tap or connection retries
+    const idempotencyKey = `idem-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-    setTicketItems([]);
-    setOrderNotes('');
-    setViewMode('map');
+    try {
+      setIsSubmitting(true);
+      setErrorMessage(null);
+
+      const createdOrder = await createOrder(
+        selectedTable, 
+        ticketItems, 
+        orderNotes,
+        {
+          idempotencyKey,
+          sedeId: currentUser.assignedSede || 'sede-principal'
+        }
+      );
+      
+      setSentSuccessMessage(`¡Comanda #${createdOrder.orderNumber} confirmada y enviada para ${selectedTable}!`);
+      setTimeout(() => setSentSuccessMessage(null), 4000);
+
+      // ONLY clear ticket and return to map AFTER confirmed persistence
+      setTicketItems([]);
+      setOrderNotes('');
+      setViewMode('map');
+    } catch (err: any) {
+      console.error('Error al enviar la comanda:', err);
+      setErrorMessage(err.message || 'No se pudo registrar la comanda. Por favor intente nuevamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Request Customer Pre-Bill from Cashier
@@ -748,6 +773,13 @@ export const WaiterModule: React.FC = () => {
                 className="w-full px-3 py-1.5 bg-[#080A16] border border-[#EBE1D5]/20 rounded-lg text-xs text-white placeholder-[#71788E] focus:outline-none focus:border-[#7C170D]"
               />
 
+              {errorMessage && (
+                <div className="p-2 rounded-lg bg-red-950/70 border border-red-500/50 text-red-200 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span className="flex-1">{errorMessage}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs uppercase font-semibold text-[#A6AFCA]">Total Nueva Comanda:</span>
                 <span className="text-lg font-black text-white font-mono tabular-nums">
@@ -755,19 +787,28 @@ export const WaiterModule: React.FC = () => {
                 </span>
               </div>
 
-              {/* Exclusive Action Button: Enviar a Cocina & Bar */}
+              {/* Exclusive Action Button: Enviar a Cocina & Bar con protección contra doble clic */}
               <button
                 type="button"
-                disabled={ticketItems.length === 0}
+                disabled={ticketItems.length === 0 || isSubmitting}
                 onClick={handleSendComanda}
                 className={`w-full py-3 px-4 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all shadow-xl border ${
-                  ticketItems.length > 0
+                  ticketItems.length > 0 && !isSubmitting
                     ? 'bg-[#7C170D] hover:bg-[#961D12] text-white border-[#EBE1D5]/40 cursor-pointer active:scale-98 shadow-md'
                     : 'bg-[#121524] text-[#474F68] border-[#EBE1D5]/10 cursor-not-allowed'
                 }`}
               >
-                <Send className="w-4 h-4" />
-                <span>ENVIAR COMANDA A COCINA Y BAR</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>ENVIANDO Y CONFIRMANDO...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>ENVIAR COMANDA A COCINA Y BAR</span>
+                  </>
+                )}
               </button>
 
               <p className="text-[10px] text-center text-[#71788E] pt-0.5">

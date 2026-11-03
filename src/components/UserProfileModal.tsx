@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { UserProfile, UserRole, ModuleOperation, RolePermissionsConfig } from '../types';
 import { defaultRolePermissions, defaultUserModulePermissions } from '../data/initialData';
 import { formatCOP, formatDateTimeBogota } from '../utils/format';
+import { hashPinPBKDF2 } from '../utils/cryptoAuth';
 import { 
   User, 
   Camera, 
@@ -112,7 +113,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl);
   const [bio, setBio] = useState(currentUser.bio || '');
   const [role, setRole] = useState<UserRole>(currentUser.role);
-  const [pin, setPin] = useState(currentUser.pin);
+  const [pin, setPin] = useState('');
   const [phone, setPhone] = useState(currentUser.phone);
   const [email, setEmail] = useState(currentUser.email);
   const [assignedShift, setAssignedShift] = useState(currentUser.assignedShift);
@@ -125,7 +126,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
   const [newAvatarUrl, setNewAvatarUrl] = useState(PRESET_AVATARS[2]);
   const [newBio, setNewBio] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('mesero');
-  const [newPin, setNewPin] = useState('1111');
+  const [newPin, setNewPin] = useState('');
   const [newPhone, setNewPhone] = useState('310 000 0000');
   const [newEmail, setNewEmail] = useState('');
   const [newShift, setNewShift] = useState<'matutino' | 'nocturno' | 'ambos'>('matutino');
@@ -164,7 +165,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -187,28 +188,39 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       return;
     }
 
-    if (!/^\d{4}$/.test(pin)) {
-      setErrorMsg('El PIN de seguridad debe contener exactamente 4 números.');
-      return;
-    }
-
-    updateUserProfile(currentUser.id, {
+    const updates: Partial<UserProfile> = {
       username: cleanUsername,
       fullName: fullName.trim(),
       avatarUrl,
       bio: bio.trim(),
       role,
-      pin,
       phone: phone.trim(),
       email: email.trim(),
       assignedShift,
-    });
+    };
+
+    if (pin.trim()) {
+      if (!/^\d{4,6}$/.test(pin.trim())) {
+        setErrorMsg('El PIN de seguridad debe contener entre 4 y 6 dígitos numéricos.');
+        return;
+      }
+      try {
+        const { pinHash, pinSalt } = await hashPinPBKDF2(pin.trim());
+        updates.pinHash = pinHash;
+        updates.pinSalt = pinSalt;
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Error al derivar el PIN.');
+        return;
+      }
+    }
+
+    updateUserProfile(currentUser.id, updates);
 
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  const handleCreateProfile = (e: React.FormEvent) => {
+  const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -229,27 +241,38 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
       return;
     }
 
-    addUserProfile({
-      username: cleanUsername,
-      fullName: newFullName.trim(),
-      avatarUrl: newAvatarUrl,
-      bio: newBio.trim(),
-      role: newRole,
-      pin: newPin || '1234',
-      phone: newPhone.trim(),
-      email: newEmail.trim() || `${cleanUsername}@90grados.com`,
-      assignedShift: newShift,
-      lastLogin: new Date().toISOString(),
-      isWhitelisted: true,
-      isActive: true,
-      modulePermissions: defaultUserModulePermissions[newRole],
-    });
+    if (!/^\d{4,6}$/.test(newPin.trim())) {
+      setErrorMsg('El PIN para el nuevo perfil debe tener entre 4 y 6 dígitos numéricos.');
+      return;
+    }
 
-    setCreateSuccess(true);
-    setTimeout(() => {
-      setCreateSuccess(false);
-      setActiveTab('directory');
-    }, 1500);
+    try {
+      const { pinHash, pinSalt } = await hashPinPBKDF2(newPin.trim());
+      addUserProfile({
+        username: cleanUsername,
+        fullName: newFullName.trim(),
+        avatarUrl: newAvatarUrl,
+        bio: newBio.trim(),
+        role: newRole,
+        pinHash,
+        pinSalt,
+        phone: newPhone.trim(),
+        email: newEmail.trim() || `${cleanUsername}@90grados.local`,
+        assignedShift: newShift,
+        lastLogin: new Date().toISOString(),
+        isWhitelisted: true,
+        isActive: true,
+        modulePermissions: defaultUserModulePermissions[newRole],
+      });
+
+      setCreateSuccess(true);
+      setTimeout(() => {
+        setCreateSuccess(false);
+        setActiveTab('directory');
+      }, 1500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al procesar el PIN.');
+    }
   };
 
   return (
@@ -527,17 +550,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
                 <div className="relative">
                   <input
                     type="password"
-                    maxLength={4}
+                    maxLength={6}
                     value={pin}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="1234"
+                    placeholder="Dejar vacío para conservar actual"
                     className="w-full px-3 py-2 bg-[#0E1120] border border-[#EBE1D5]/20 rounded-lg text-sm text-white font-mono tracking-widest focus:outline-none focus:border-[#7C170D]"
-                    required
                   />
                   <KeyRound className="w-4 h-4 text-[#A6AFCA] absolute right-3 top-2.5" />
                 </div>
                 <p className="text-[11px] text-[#A6AFCA] mt-1">
-                  Permite desbloquear el POS rápidamente o cambiar de turno.
+                  Ingresa 4 a 6 dígitos numéricos para actualizar el PIN del terminal.
                 </p>
               </div>
 
@@ -866,13 +888,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ isOpen, onCl
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#EBE1D5] mb-1">PIN POS (4 dígitos) *</label>
+                <label className="block text-xs font-semibold text-[#EBE1D5] mb-1">PIN POS (4-6 dígitos) *</label>
                 <input
                   type="password"
-                  maxLength={4}
+                  maxLength={6}
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="1234"
+                  placeholder="****"
                   className="w-full px-3 py-2 bg-[#0E1120] border border-[#EBE1D5]/20 rounded-lg text-sm text-white font-mono tracking-widest focus:outline-none focus:border-[#7C170D]"
                   required
                 />

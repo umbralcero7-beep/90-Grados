@@ -1,0 +1,14 @@
+{
+	"appId": "com.noventagrados.pos",
+	"appName": "90 Grados POS",
+	"webDir": "dist",
+	"server": {
+		"cleartext": true,
+		"androidScheme": "http"
+	},
+	"android": {
+		"allowMixedContent": true,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false
+	}
+}

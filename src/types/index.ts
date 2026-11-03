@@ -34,10 +34,13 @@ export interface UserProfile {
   avatarUrl: string; // Base64 data URL or preset asset
   bio: string; // Short bio description
   role: UserRole;
-  pin: string; // 4 digits for fast terminal unlock
+  pinHash: string; // PBKDF2-HMAC-SHA256 derived hash
+  pinSalt: string; // 16-byte cryptographic salt in hex
+  pin?: never; // Plaintext PINs prohibited from client model
   phone: string;
   email: string;
   assignedShift: 'matutino' | 'nocturno' | 'ambos';
+  assignedSede?: string; // Sede asignada (ej: 'sede_cota_principal')
   emergencyContact?: string;
   createdAt: string;
   lastLogin: string;
@@ -118,6 +121,8 @@ export interface Order {
   customerNote?: string;
   createdAt: string; // ISO string
   totalAmount: number; // Integer in COP
+  sedeId?: string; // Sede / branch identifier
+  idempotencyKey?: string; // Prevents duplicated orders on network retries
   payment?: PaymentRecord;
 }
 
